@@ -3,9 +3,14 @@ package entity
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"errors"
 	"openabyss/utils"
+	"os"
+	"path"
 	"time"
 
+	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
 )
 
@@ -25,4 +30,54 @@ func GenerateKeys(dir string, keyname string, bits int) Entity {
 		PrivateKey: gpgSkKey,
 		PublicKey:  gpgPbKey,
 	}
+}
+
+func DecodePublicKey(dir string, keyname string) *packet.PublicKey {
+	// Open the file
+	keyFile, err := os.Open(path.Join(dir, keyname))
+	utils.HandleErr(err, "could not read key file")
+	defer keyFile.Close()
+
+	// Decode the file
+	block, err := armor.Decode(keyFile)
+	utils.HandleErr(err, "couldn't decode keyfile")
+	if block.Type != openpgp.PublicKeyType {
+		utils.HandleErr(errors.New("not public key type"), "")
+	}
+
+	// Read & Parse the Key
+	pktReader := packet.NewReader(block.Body)
+	pkt, err := pktReader.Next()
+	utils.HandleErr(err, "could not read packet")
+	key, ok := pkt.(*packet.PublicKey)
+	if !ok {
+		utils.HandleErr(errors.New("failed to convert packet to public key type"), "")
+	}
+
+	return key
+}
+
+func DecodePrivateKey(dir string, keyname string) *packet.PrivateKey {
+	// Open the file
+	keyFile, err := os.Open(path.Join(dir, keyname))
+	utils.HandleErr(err, "could not read key file")
+	defer keyFile.Close()
+
+	// Decode the file
+	block, err := armor.Decode(keyFile)
+	utils.HandleErr(err, "couldn't decode keyfile")
+	if block.Type != openpgp.PrivateKeyType {
+		utils.HandleErr(errors.New("not private key type"), "")
+	}
+
+	// Read & Parse the Key
+	pktReader := packet.NewReader(block.Body)
+	pkt, err := pktReader.Next()
+	utils.HandleErr(err, "could not read packet")
+	key, ok := pkt.(*packet.PrivateKey)
+	if !ok {
+		utils.HandleErr(errors.New("failed to convert packet to private key type"), "")
+	}
+
+	return key
 }
