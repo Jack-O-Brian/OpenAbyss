@@ -1,34 +1,47 @@
 package utils
 
 import (
-	"bytes"
 	"os"
+	"path/filepath"
 
 	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
 )
 
 // Exports the public/private key to a file given
 //  the filename and entity to export
-func ExportKeys(entity *openpgp.Entity, filename string) error {
-	// Serialize the Key into Bytes
-	dataBytes := bytes.NewBufferString("")
-	if err := entity.PrivateKey.Serialize(dataBytes); err != nil {
-		return err
-	}
+func ExportKeys(pk *packet.PublicKey, sk *packet.PrivateKey, dir string, keyname string) error {
+	// Attempt to create the directory (in case not avail)
+	os.Mkdir(dir, 0777)
 
-	// Output key to a file
-	file, err := os.Create(filename)
+	// Open Files to write to
+	privKeyFile, err := os.Create(filepath.Join(dir, keyname))
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-
-	// Convert to ASCII
-	if err := openpgp.ArmoredDetachSign(file, entity, bytes.NewBuffer([]byte("")), &packet.Config{}); err != nil {
-		os.Remove(filename)
-		return nil
+	defer privKeyFile.Close()
+	pubKeyFile, err := os.Create(filepath.Join(dir, keyname+".pub"))
+	if err != nil {
+		return err
 	}
+	defer pubKeyFile.Close()
+
+	// Open Armor Encode Writers
+	pWriter, err := armor.Encode(pubKeyFile, openpgp.PublicKeyType, make(map[string]string))
+	if err != nil {
+		return err
+	}
+	defer pWriter.Close()
+	sWriter, err := armor.Encode(privKeyFile, openpgp.PrivateKeyType, make(map[string]string))
+	if err != nil {
+		return err
+	}
+	defer sWriter.Close()
+
+	// Encode keys to writers
+	pk.Serialize(pWriter)
+	sk.Serialize(sWriter)
 
 	return nil
 }
